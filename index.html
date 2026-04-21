@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EnvCompare | Premium Env Diff Tool</title>
+    <meta name="description" content="A beautiful and simple environment variable comparison tool. Compare development and production .env files instantly.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme">
+            <svg id="theme-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <!-- Icon will be injected by JS -->
+            </svg>
+        </button>
+        <h1>EnvCompare</h1>
+        <p class="subtitle">Instantly identify missing environment variables in production.</p>
+    </header>
+
+    <main>
+        <section class="comparison-grid">
+            <div class="pane">
+                <div class="pane-header">
+                    <span class="label">Development (.env)</span>
+                </div>
+                <textarea id="dev-env" placeholder="Paste your development .env content here..."></textarea>
+            </div>
+
+            <div class="pane">
+                <div class="pane-header">
+                    <span class="label">Production (.env)</span>
+                </div>
+                <textarea id="prod-env" placeholder="Paste your production .env content here..."></textarea>
+            </div>
+        </section>
+
+        <section class="results-section" id="results">
+            <div class="results-header">
+                <h2>Missing in Production</h2>
+                <span class="badge" id="missing-count">0</span>
+            </div>
+            
+            <div id="missing-list" class="missing-list">
+                <!-- Missing keys will be injected here -->
+                <div class="empty-state">
+                    Enter variables to start comparing.
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
