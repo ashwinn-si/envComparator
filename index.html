@@ -7,7 +7,7 @@
     <meta name="description" content="A beautiful and simple environment variable comparison tool. Compare development and production .env files instantly.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -39,13 +39,22 @@
         </section>
 
         <section class="results-section" id="results">
-            <div class="results-header">
-                <h2>Missing in Production</h2>
-                <span class="badge" id="missing-count">0</span>
+            <div class="results-nav">
+                <button class="nav-btn active" data-tab="missing-prod">
+                    Missing in Prod <span class="badge" id="badge-missing-prod">0</span>
+                </button>
+                <button class="nav-btn" data-tab="missing-dev">
+                    Missing in Dev <span class="badge" id="badge-missing-dev">0</span>
+                </button>
+                <button class="nav-btn" data-tab="diff-values">
+                    Different Values <span class="badge" id="badge-diff-values">0</span>
+                </button>
+                <button class="nav-btn" data-tab="dupes">
+                    Duplicates <span class="badge" id="badge-dupes">0</span>
+                </button>
             </div>
             
-            <div id="missing-list" class="missing-list">
-                <!-- Missing keys will be injected here -->
+            <div id="detail-content" class="detail-content">
                 <div class="empty-state">
                     Enter variables to start comparing.
                 </div>

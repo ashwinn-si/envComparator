@@ -5,10 +5,20 @@
 
 const devInput = document.getElementById('dev-env');
 const prodInput = document.getElementById('prod-env');
-const missingList = document.getElementById('missing-list');
-const missingCount = document.getElementById('missing-count');
+const detailContent = document.getElementById('detail-content');
 const themeToggle = document.getElementById('theme-toggle');
 const themeIcon = document.getElementById('theme-icon');
+const navButtons = document.querySelectorAll('.nav-btn');
+
+let currentTab = 'missing-prod';
+let comparisonData = {
+    isEmpty: true,
+    missingInProd: [],
+    missingInDev: [],
+    valueMismatches: [],
+    devDupes: [],
+    prodDupes: []
+};
 
 /**
  * Theme Management
@@ -36,8 +46,9 @@ themeToggle.addEventListener('click', () => {
 /**
  * .env Parsing & Comparison
  */
-function parseEnvKeys(text) {
-    const keys = new Set();
+function parseEnv(text) {
+    const unique = new Map();
+    const duplicates = new Set();
     const lines = text.split('\n');
     
     for (let line of lines) {
@@ -51,51 +62,210 @@ function parseEnvKeys(text) {
         const equalsIndex = line.indexOf('=');
         if (equalsIndex > 0) {
             const key = line.substring(0, equalsIndex).trim();
-            if (key) keys.add(key);
+            const value = line.substring(equalsIndex + 1).trim();
+            if (key) {
+                if (unique.has(key)) {
+                    duplicates.add(key);
+                } else {
+                    unique.set(key, value);
+                }
+            }
         }
     }
-    return keys;
+    return { unique, duplicates: [...duplicates] };
 }
 
 function compareEnvs() {
-    const devKeys = parseEnvKeys(devInput.value);
-    const prodKeys = parseEnvKeys(prodInput.value);
+    const devParser = parseEnv(devInput.value);
+    const prodParser = parseEnv(prodInput.value);
     
-    const missing = [...devKeys].filter(key => !prodKeys.has(key));
-    updateUI(missing);
+    const devMap = devParser.unique;
+    const prodMap = prodParser.unique;
+    
+    comparisonData = {
+        isEmpty: devInput.value.trim() === '' && prodInput.value.trim() === '',
+        missingInProd: [],
+        missingInDev: [],
+        valueMismatches: [],
+        devDupes: devParser.duplicates,
+        prodDupes: prodParser.duplicates
+    };
+
+    for (const [key, devValue] of devMap.entries()) {
+        if (!prodMap.has(key)) {
+            comparisonData.missingInProd.push(key);
+        } else {
+            const prodValue = prodMap.get(key);
+            if (devValue !== prodValue) {
+                comparisonData.valueMismatches.push({ key, devValue, prodValue });
+            }
+        }
+    }
+    
+    for (const key of prodMap.keys()) {
+        if (!devMap.has(key)) {
+            comparisonData.missingInDev.push(key);
+        }
+    }
+
+    updateBadges();
+    renderTab();
 }
 
-function updateUI(missing) {
-    missingCount.textContent = missing.length;
-    
-    if (missing.length === 0) {
-        if (devInput.value.trim() === '' && prodInput.value.trim() === '') {
-            missingList.innerHTML = `
-                <div class="empty-state">
-                    Paste your .env variables to start the comparison.
-                </div>
-            `;
-        } else {
-            missingList.innerHTML = `
-                <div class="empty-state" style="border-color: var(--success-color); color: var(--success-color); border-style: solid; background: rgba(52, 211, 153, 0.05);">
-                    ✨ Perfect match! All variables are present in production.
-                </div>
-            `;
-        }
+function updateBadges() {
+    document.getElementById('badge-missing-prod').textContent = comparisonData.missingInProd.length;
+    document.getElementById('badge-missing-dev').textContent = comparisonData.missingInDev.length;
+    document.getElementById('badge-diff-values').textContent = comparisonData.valueMismatches.length;
+    document.getElementById('badge-dupes').textContent = comparisonData.devDupes.length + comparisonData.prodDupes.length;
+}
+
+function renderTab() {
+    if (comparisonData.isEmpty) {
+        detailContent.innerHTML = `
+            <div class="empty-state">
+                Paste your .env variables to start the comparison.
+            </div>
+        `;
         return;
     }
 
-    missingList.innerHTML = missing.map(key => `
-        <div class="missing-item">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    let html = '';
+
+    if (currentTab === 'missing-prod') {
+        html = renderList(comparisonData.missingInProd, 'danger-icon', '✨ Perfect match! No variables missing in production.');
+    } else if (currentTab === 'missing-dev') {
+        html = renderList(comparisonData.missingInDev, 'blue-icon', '✨ Clean environment! No extra variables in production.');
+    } else if (currentTab === 'diff-values') {
+        html = renderValueMismatches();
+    } else if (currentTab === 'dupes') {
+        html = renderDupes();
+    }
+
+    detailContent.innerHTML = html;
+}
+
+function getIconSvg() {
+    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="8" x2="12" y2="12"></line>
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-            <code>${key}</code>
-        </div>
-    `).join('');
+            </svg>`;
 }
+
+function renderList(items, iconClass, emptyMessage) {
+    if (items.length === 0) {
+        return `
+            <div class="empty-state" style="border-color: var(--success-color); color: var(--success-color); border-style: solid; background: rgba(52, 211, 153, 0.05);">
+                ${emptyMessage}
+            </div>
+        `;
+    }
+
+    return `
+        <div class="missing-list">
+            ${items.map(key => `
+                <div class="missing-item ${iconClass}">
+                    ${getIconSvg()}
+                    <code>${key}</code>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderValueMismatches() {
+    const items = comparisonData.valueMismatches;
+    if (items.length === 0) {
+        return `
+            <div class="empty-state" style="border-color: var(--success-color); color: var(--success-color); border-style: solid; background: rgba(52, 211, 153, 0.05);">
+                ✨ Synchronization complete! All matching variables have identical values.
+            </div>
+        `;
+    }
+
+    return `
+        <div class="diff-list">
+            ${items.map(item => `
+                <div class="diff-item">
+                    <div class="diff-header">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                        ${item.key}
+                    </div>
+                    <div class="diff-values-grid">
+                        <div class="diff-col">
+                            <span class="diff-label">Development</span>
+                            <div class="diff-val">${escapeHtml(item.devValue)}</div>
+                        </div>
+                        <div class="diff-col">
+                            <span class="diff-label">Production</span>
+                            <div class="diff-val">${escapeHtml(item.prodValue)}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderDupes() {
+    const dev = comparisonData.devDupes;
+    const prod = comparisonData.prodDupes;
+    const total = dev.length + prod.length;
+
+    if (total === 0) {
+        return `
+            <div class="empty-state" style="border-color: var(--success-color); color: var(--success-color); border-style: solid; background: rgba(52, 211, 153, 0.05);">
+                ✨ No duplicates found in any environment!
+            </div>
+        `;
+    }
+
+    let itemsHtml = '';
+    
+    dev.forEach(key => {
+        itemsHtml += `
+            <div class="missing-item yellow-icon">
+                ${getIconSvg()}
+                <code>${key}</code>
+                <span class="dupe-tag">DEV</span>
+            </div>
+        `;
+    });
+
+    prod.forEach(key => {
+        itemsHtml += `
+            <div class="missing-item yellow-icon">
+                ${getIconSvg()}
+                <code>${key}</code>
+                <span class="dupe-tag">PROD</span>
+            </div>
+        `;
+    });
+
+    return `<div class="missing-list">${itemsHtml}</div>`;
+}
+
+function escapeHtml(text) {
+    const fn = (a) => {
+        const escapes = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        return escapes[a];
+    };
+    return text.replace(/[&<>"']/g, fn);
+}
+
+// Navigation Events
+navButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        navButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentTab = btn.getAttribute('data-tab');
+        renderTab();
+    });
+});
 
 // Global Event Listeners
 devInput.addEventListener('input', compareEnvs);
