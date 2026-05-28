@@ -22,6 +22,12 @@ const prodClearBtn = document.getElementById('prod-clear');
 const devDropZone = document.getElementById('dev-drop-zone');
 const prodDropZone = document.getElementById('prod-drop-zone');
 
+// Pane Search Elements
+const devPaneSearch = document.getElementById('dev-pane-search');
+const prodPaneSearch = document.getElementById('prod-pane-search');
+const devSearchCount = document.getElementById('dev-search-count');
+const prodSearchCount = document.getElementById('prod-search-count');
+
 // Stats Elements
 const statDevCount = document.getElementById('stat-dev-count');
 const statProdCount = document.getElementById('stat-prod-count');
@@ -53,10 +59,13 @@ let parsedDev = { unique: new Map(), duplicates: [], order: [], comments: new Ma
 let parsedProd = { unique: new Map(), duplicates: [], order: [], comments: new Map() };
 let comparisonStats = { devCount: 0, prodCount: 0, syncPercent: 0, securityScore: 100 };
 let linterIssues = [];
+let devSearchState = { query: '', matches: [], currentIndex: -1 };
+let prodSearchState = { query: '', matches: [], currentIndex: -1 };
 
 // Icons SVGs
 const MOON_ICON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
-const SUN_ICON = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+const SUN_ICON =
+  '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
 
 const EYE_OFF_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
 const EYE_ON_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
@@ -99,7 +108,7 @@ NEXT_PUBLIC_STRIPE_SECRET_KEY="sk_live_insecure_client_secret_xyz"
 
 # Additional Production Keys
 ANOTHER_PROD_KEY="prod_special_val"
-`
+`,
   },
   laravel: {
     dev: `# Laravel Application Development Config
@@ -133,7 +142,7 @@ DB_PORT=3306
 DB_DATABASE=laravel_prod
 DB_USERNAME=admin
 DB_PASSWORD=password
-`
+`,
   },
   django: {
     dev: `# Django Server Settings
@@ -149,8 +158,8 @@ DEBUG=False
 DEBUG=False
 SECRET_KEY="django-insecure-n(v&i!%h08j=a#4+52z0p5y+)"
 DATABASE_URL="postgres://django_user:prod_db_pass_998@db.django-host.com:5432/db"
-`
-  }
+`,
+  },
 };
 
 /**
@@ -180,19 +189,19 @@ function showToast(message, type = 'success', duration = 3500) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
-  
+
   let icon = CHECK_ICON;
   if (type === 'warning') icon = WARNING_ICON;
   if (type === 'danger') icon = ERROR_ICON;
   if (type === 'info') icon = INFO_ICON;
-  
+
   toast.innerHTML = `
     ${icon}
     <div class="toast-message">${message}</div>
   `;
-  
+
   container.appendChild(toast);
-  
+
   // Slide out and remove
   setTimeout(() => {
     toast.style.opacity = '0';
@@ -209,41 +218,43 @@ function parseEnv(text) {
   const duplicates = [];
   const order = [];
   const comments = new Map(); // Associate comments with keys
-  
+
   const lines = text.split('\n');
   let pendingComments = [];
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    
+
     // Track Comments
     if (line.startsWith('#')) {
       pendingComments.push(line);
       continue;
     }
-    
+
     if (!line) {
       pendingComments = []; // Reset on blank lines
       continue;
     }
-    
+
     // Strip "export " prefix
     let cleanLine = line;
     if (cleanLine.startsWith('export ')) {
       cleanLine = cleanLine.substring(7).trim();
     }
-    
+
     const equalsIndex = cleanLine.indexOf('=');
     if (equalsIndex > 0) {
       const key = cleanLine.substring(0, equalsIndex).trim();
       let value = cleanLine.substring(equalsIndex + 1).trim();
-      
+
       // Clean string quotes
-      if ((value.startsWith('"') && value.endsWith('"')) || 
-          (value.startsWith("'") && value.endsWith("'"))) {
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
         value = value.substring(1, value.length - 1);
       }
-      
+
       if (key) {
         if (unique.has(key)) {
           duplicates.push({ key, lineNum: i + 1, value });
@@ -258,7 +269,7 @@ function parseEnv(text) {
       }
     }
   }
-  
+
   return { unique, duplicates, order, comments };
 }
 
@@ -268,36 +279,36 @@ function parseEnv(text) {
 function lintEnvironments() {
   linterIssues = [];
   let score = 100;
-  
+
   const devMap = parsedDev.unique;
   const prodMap = parsedProd.unique;
-  
+
   const rules = {
     // 1. Secret leaked in client bundles
     exposedSecrets: [],
     // 2. Cleartext / Weak production credentials
     criticalErrors: [],
     // 3. Duplicate checks & code quality issues
-    codeQuality: []
+    codeQuality: [],
   };
 
   // Rule: Duplicate Keys check
   parsedDev.duplicates.forEach(dupe => {
     rules.codeQuality.push({
-      title: "Duplicate Variable in Development",
+      title: 'Duplicate Variable in Development',
       desc: `Key <code>${dupe.key}</code> is defined multiple times. Duplicate values override each other unexpectedly.`,
-      severity: "warning",
-      key: dupe.key
+      severity: 'warning',
+      key: dupe.key,
     });
     score -= 3;
   });
-  
+
   parsedProd.duplicates.forEach(dupe => {
     rules.criticalErrors.push({
-      title: "Duplicate Variable in Production",
+      title: 'Duplicate Variable in Production',
       desc: `Key <code>${dupe.key}</code> is declared multiple times in Production.`,
-      severity: "danger",
-      key: dupe.key
+      severity: 'danger',
+      key: dupe.key,
     });
     score -= 5;
   });
@@ -307,10 +318,10 @@ function lintEnvironments() {
     // Standard capitalization check
     if (key !== key.toUpperCase() || !/^[A-Z0-9_]+$/.test(key)) {
       rules.codeQuality.push({
-        title: "Variable name not in UPPER_SNAKE_CASE (Dev)",
+        title: 'Variable name not in UPPER_SNAKE_CASE (Dev)',
         desc: `Variable <code>${key}</code> should follow convention standards.`,
-        severity: "info",
-        key
+        severity: 'info',
+        key,
       });
       score -= 1;
     }
@@ -321,10 +332,10 @@ function lintEnvironments() {
     // Empty Value
     if (!val) {
       rules.codeQuality.push({
-        title: "Blank Production Variable",
+        title: 'Blank Production Variable',
         desc: `Key <code>${key}</code> exists in Production but has no value.`,
-        severity: "warning",
-        key
+        severity: 'warning',
+        key,
       });
       score -= 3;
       return;
@@ -333,52 +344,66 @@ function lintEnvironments() {
     // Standard capitalization check
     if (key !== key.toUpperCase() || !/^[A-Z0-9_]+$/.test(key)) {
       rules.codeQuality.push({
-        title: "Variable name not in UPPER_SNAKE_CASE (Prod)",
+        title: 'Variable name not in UPPER_SNAKE_CASE (Prod)',
         desc: `Variable <code>${key}</code> in production does not follow standard conventions.`,
-        severity: "info",
-        key
+        severity: 'info',
+        key,
       });
       score -= 1;
     }
 
     // Exposed secrets rule: NEXT_PUBLIC_ / VITE_ etc. containing sensitive keywords
-    const publicClientPrefixes = ["NEXT_PUBLIC_", "VITE_", "NUXT_PUBLIC_", "MIX_"];
+    const publicClientPrefixes = ['NEXT_PUBLIC_', 'VITE_', 'NUXT_PUBLIC_', 'MIX_'];
     const hasPublicPrefix = publicClientPrefixes.some(pref => key.startsWith(pref));
-    const isSensitiveWord = ["SECRET", "PASSWORD", "KEY", "PRIVATE", "TOKEN", "CREDENTIAL"].some(word => key.includes(word));
-    
+    const isSensitiveWord = ['SECRET', 'PASSWORD', 'KEY', 'PRIVATE', 'TOKEN', 'CREDENTIAL'].some(
+      word => key.includes(word)
+    );
+
     if (hasPublicPrefix && isSensitiveWord) {
       rules.exposedSecrets.push({
-        title: "Critical Client Leak Risk",
+        title: 'Critical Client Leak Risk',
         desc: `Public variable <code>${key}</code> contains high-risk keywords in production. Client-accessible variables are exposed in web bundles!`,
-        severity: "danger",
-        key
+        severity: 'danger',
+        key,
       });
       score -= 20;
     }
 
     // HTTP links in Production
-    if (val.startsWith("http://") && !val.includes("localhost") && !val.includes("127.0.0.1")) {
+    if (val.startsWith('http://') && !val.includes('localhost') && !val.includes('127.0.0.1')) {
       rules.criticalErrors.push({
-        title: "Unsecured HTTP Connection in Production",
+        title: 'Unsecured HTTP Connection in Production',
         desc: `Production key <code>${key}</code> is configured with unsecure HTTP (<code>${val}</code>). Always utilize HTTPS in production.`,
-        severity: "danger",
-        key
+        severity: 'danger',
+        key,
       });
       score -= 10;
     }
 
     // Weak Passwords/Passwords matching default terms
-    const weakPasswords = ["password", "123456", "admin", "root", "secret", "null", "undefined", "12345", "12345678"];
-    const isCredentialsField = ["PASS", "SECRET", "KEY", "TOKEN", "PWD"].some(word => key.includes(word));
-    
+    const weakPasswords = [
+      'password',
+      '123456',
+      'admin',
+      'root',
+      'secret',
+      'null',
+      'undefined',
+      '12345',
+      '12345678',
+    ];
+    const isCredentialsField = ['PASS', 'SECRET', 'KEY', 'TOKEN', 'PWD'].some(word =>
+      key.includes(word)
+    );
+
     if (isCredentialsField) {
       const normalizedVal = val.toLowerCase();
       if (weakPasswords.includes(normalizedVal) || normalizedVal === key.toLowerCase()) {
         rules.criticalErrors.push({
-          title: "Weak Production Password",
+          title: 'Weak Production Password',
           desc: `Critical key <code>${key}</code> uses a weak, easily-guessable credential (<code>${val}</code>).`,
-          severity: "danger",
-          key
+          severity: 'danger',
+          key,
         });
         score -= 15;
       }
@@ -388,12 +413,12 @@ function lintEnvironments() {
   // Format issues into flattened array
   const formattedIssues = [];
   let issueCount = 0;
-  
+
   Object.keys(rules).forEach(cat => {
     rules[cat].forEach(issue => {
       issue.category = cat;
       formattedIssues.push(issue);
-      if (issue.severity === "danger" || issue.severity === "warning") {
+      if (issue.severity === 'danger' || issue.severity === 'warning') {
         issueCount++;
       }
     });
@@ -401,24 +426,24 @@ function lintEnvironments() {
 
   linterIssues = formattedIssues;
   comparisonStats.securityScore = Math.max(0, score);
-  
+
   // Update Security Score badge UI
   const badgeLinter = document.getElementById('badge-linter');
   badgeLinter.textContent = issueCount;
-  badgeLinter.className = issueCount > 0 ? "badge badge-warning" : "badge";
-  
+  badgeLinter.className = issueCount > 0 ? 'badge badge-warning' : 'badge';
+
   statSecurityScore.textContent = `${comparisonStats.securityScore}/100`;
-  
+
   // Dynamic Score styling colors
-  statSecurityCard.className = "stat-card";
+  statSecurityCard.className = 'stat-card';
   if (comparisonStats.securityScore >= 85) {
-    statSecurityScore.className = "stat-value text-success";
+    statSecurityScore.className = 'stat-value text-success';
   } else if (comparisonStats.securityScore >= 60) {
-    statSecurityScore.className = "stat-value text-warning";
-    statSecurityCard.classList.add("warning-border");
+    statSecurityScore.className = 'stat-value text-warning';
+    statSecurityCard.classList.add('warning-border');
   } else {
-    statSecurityScore.className = "stat-value text-danger";
-    statSecurityCard.classList.add("danger-border");
+    statSecurityScore.className = 'stat-value text-danger';
+    statSecurityCard.classList.add('danger-border');
   }
 }
 
@@ -428,20 +453,31 @@ function lintEnvironments() {
 function getMaskedString(key, val) {
   if (!showMasked || !val) return val;
   if (manuallyUnmaskedKeys.has(key)) return val;
-  
+
   // Determine if it looks like a secret, or mask everything in mask secrets mode
-  const looksLikeSecret = ["KEY", "PASS", "SECRET", "TOKEN", "AUTH", "DATABASE", "URL", "JWT", "SALT", "PWD"].some(word => key.includes(word));
-  
+  const looksLikeSecret = [
+    'KEY',
+    'PASS',
+    'SECRET',
+    'TOKEN',
+    'AUTH',
+    'DATABASE',
+    'URL',
+    'JWT',
+    'SALT',
+    'PWD',
+  ].some(word => key.includes(word));
+
   if (looksLikeSecret) {
-    return "••••••••";
+    return '••••••••';
   }
   return val;
 }
 
 function escapeHtml(text) {
-  if (!text) return "";
+  if (!text) return '';
   const escapes = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  return text.replace(/[&<>"']/g, (a) => escapes[a]);
+  return text.replace(/[&<>"']/g, a => escapes[a]);
 }
 
 /**
@@ -450,29 +486,29 @@ function escapeHtml(text) {
 function updateComparison() {
   parsedDev = parseEnv(devInput.value);
   parsedProd = parseEnv(prodInput.value);
-  
+
   const devMap = parsedDev.unique;
   const prodMap = parsedProd.unique;
-  
+
   // Total Keys Count
   comparisonStats.devCount = devMap.size;
   comparisonStats.prodCount = prodMap.size;
-  
+
   statDevCount.textContent = comparisonStats.devCount;
   statProdCount.textContent = comparisonStats.prodCount;
-  
+
   // Compare Keys
   let totalKeys = new Set([...devMap.keys(), ...prodMap.keys()]);
   let matches = 0;
-  
+
   let missingInProd = [];
   let missingInDev = [];
   let valueMismatches = [];
-  
+
   totalKeys.forEach(key => {
     const inDev = devMap.has(key);
     const inProd = prodMap.has(key);
-    
+
     if (inDev && inProd) {
       if (devMap.get(key) === prodMap.get(key)) {
         matches++;
@@ -480,7 +516,7 @@ function updateComparison() {
         valueMismatches.push({
           key,
           devVal: devMap.get(key),
-          prodVal: prodMap.get(key)
+          prodVal: prodMap.get(key),
         });
       }
     } else if (inDev) {
@@ -489,22 +525,22 @@ function updateComparison() {
       missingInDev.push(key);
     }
   });
-  
+
   // Health sync ratio calculation
   const totalCompareCount = totalKeys.size;
-  comparisonStats.syncPercent = totalCompareCount > 0 
-    ? Math.round((matches / totalCompareCount) * 100) 
-    : 0;
-    
+  comparisonStats.syncPercent =
+    totalCompareCount > 0 ? Math.round((matches / totalCompareCount) * 100) : 0;
+
   statSyncPercent.textContent = `${comparisonStats.syncPercent}%`;
   statSyncBar.style.width = `${comparisonStats.syncPercent}%`;
-  
+
   // Badges update
   document.getElementById('badge-missing-prod').textContent = missingInProd.length;
   document.getElementById('badge-missing-dev').textContent = missingInDev.length;
   document.getElementById('badge-diff-values').textContent = valueMismatches.length;
-  document.getElementById('badge-dupes').textContent = parsedDev.duplicates.length + parsedProd.duplicates.length;
-  
+  document.getElementById('badge-dupes').textContent =
+    parsedDev.duplicates.length + parsedProd.duplicates.length;
+
   lintEnvironments();
   renderTab();
 }
@@ -514,7 +550,7 @@ function updateComparison() {
  */
 function renderTab() {
   const isEmpty = devInput.value.trim() === '' && prodInput.value.trim() === '';
-  
+
   // Display search container only if results tab allows search
   if (currentTab === 'unified-diff' && !isEmpty) {
     searchContainer.style.display = 'flex';
@@ -533,7 +569,7 @@ function renderTab() {
           <polyline points="10 9 9 9 8 9"></polyline>
         </svg>
         <span>No environment variables detected</span>
-        <p style="font-size: 0.8rem; color: var(--text-muted);">Paste or upload `.env` contents to visualize comparative analytics.</p>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Paste or upload \`.env\` contents to visualize comparative analytics.</p>
       </div>
     `;
     return;
@@ -541,18 +577,34 @@ function renderTab() {
 
   const query = resultsSearch.value.toLowerCase().trim();
   const filterType = diffFilter.value;
-  
+
   let html = '';
 
-  switch(currentTab) {
+  switch (currentTab) {
     case 'unified-diff':
       html = renderUnifiedDiff(query, filterType);
       break;
     case 'missing-prod':
-      html = renderMissingList(getFilteredKeys(Array.from(parsedDev.unique.keys()).filter(k => !parsedProd.unique.has(k)), query), 'danger-icon', '✨ Synchronization complete! All Dev variables are active in Prod.', 'prod');
+      html = renderMissingList(
+        getFilteredKeys(
+          Array.from(parsedDev.unique.keys()).filter(k => !parsedProd.unique.has(k)),
+          query
+        ),
+        'danger-icon',
+        '✨ Synchronization complete! All Dev variables are active in Prod.',
+        'prod'
+      );
       break;
     case 'missing-dev':
-      html = renderMissingList(getFilteredKeys(Array.from(parsedProd.unique.keys()).filter(k => !parsedDev.unique.has(k)), query), 'blue-icon', '✨ Clean environment! No stray production keys.', 'dev');
+      html = renderMissingList(
+        getFilteredKeys(
+          Array.from(parsedProd.unique.keys()).filter(k => !parsedDev.unique.has(k)),
+          query
+        ),
+        'blue-icon',
+        '✨ Clean environment! No stray production keys.',
+        'dev'
+      );
       break;
     case 'diff-values':
       html = renderValueMismatches(query);
@@ -580,17 +632,17 @@ function renderUnifiedDiff(query, filterType) {
   const devMap = parsedDev.unique;
   const prodMap = parsedProd.unique;
   const allKeys = Array.from(new Set([...devMap.keys(), ...prodMap.keys()])).sort();
-  
+
   let filtered = allKeys.filter(key => {
     // 1. Search Query
     if (query && !key.toLowerCase().includes(query)) return false;
-    
+
     // 2. Filter Dropdown
     const hasDev = devMap.has(key);
     const hasProd = prodMap.has(key);
     const devVal = devMap.get(key);
     const prodVal = prodMap.get(key);
-    
+
     if (filterType === 'mismatch') {
       return hasDev && hasProd && devVal !== prodVal;
     }
@@ -623,32 +675,33 @@ function renderUnifiedDiff(query, filterType) {
         <div>Production Value</div>
         <div style="text-align: right;">Status</div>
       </div>
-      ${filtered.map(key => {
-        const hasDev = devMap.has(key);
-        const hasProd = prodMap.has(key);
-        const devVal = hasDev ? devMap.get(key) : '';
-        const prodVal = hasProd ? prodMap.get(key) : '';
-        
-        let statusBadge = '';
-        if (hasDev && hasProd) {
-          if (devVal === prodVal) {
-            statusBadge = '<span class="status-badge badge-identical">Identical</span>';
-          } else {
-            statusBadge = '<span class="status-badge badge-mismatch">Mismatch</span>';
-          }
-        } else if (hasDev) {
-          statusBadge = '<span class="status-badge badge-missing-prod">Missing Prod</span>';
-        } else {
-          statusBadge = '<span class="status-badge badge-missing-dev">Missing Dev</span>';
-        }
+      ${filtered
+        .map(key => {
+          const hasDev = devMap.has(key);
+          const hasProd = prodMap.has(key);
+          const devVal = hasDev ? devMap.get(key) : '';
+          const prodVal = hasProd ? prodMap.get(key) : '';
 
-        const devMasked = getMaskedString(key, devVal);
-        const prodMasked = getMaskedString(key, prodVal);
-        
-        const isDevEyeOn = devMasked === devVal;
-        const isProdEyeOn = prodMasked === prodVal;
-        
-        return `
+          let statusBadge = '';
+          if (hasDev && hasProd) {
+            if (devVal === prodVal) {
+              statusBadge = '<span class="status-badge badge-identical">Identical</span>';
+            } else {
+              statusBadge = '<span class="status-badge badge-mismatch">Mismatch</span>';
+            }
+          } else if (hasDev) {
+            statusBadge = '<span class="status-badge badge-missing-prod">Missing Prod</span>';
+          } else {
+            statusBadge = '<span class="status-badge badge-missing-dev">Missing Dev</span>';
+          }
+
+          const devMasked = getMaskedString(key, devVal);
+          const prodMasked = getMaskedString(key, prodVal);
+
+          const isDevEyeOn = devMasked === devVal;
+          const isProdEyeOn = prodMasked === prodVal;
+
+          return `
           <div class="grid-row">
             <div class="grid-cell key-cell" title="${key}">
               <button class="quick-copy" onclick="copyToClipboard('${key}', 'Variable Key name copied!')" title="Copy Key Name">
@@ -658,35 +711,75 @@ function renderUnifiedDiff(query, filterType) {
             </div>
             
             <div class="grid-cell">
-              ${hasDev ? `
+              ${
+                hasDev
+                  ? `
                 <div class="value-container" title="${escapeHtml(devVal)}">
                   <span class="value-text">${escapeHtml(devMasked) || '<span class="empty-val">empty</span>'}</span>
-                  ${showMasked && ["KEY", "PASS", "SECRET", "TOKEN", "AUTH", "DATABASE", "URL", "JWT", "SALT", "PWD"].some(w => key.includes(w)) ? `
+                  ${
+                    showMasked &&
+                    [
+                      'KEY',
+                      'PASS',
+                      'SECRET',
+                      'TOKEN',
+                      'AUTH',
+                      'DATABASE',
+                      'URL',
+                      'JWT',
+                      'SALT',
+                      'PWD',
+                    ].some(w => key.includes(w))
+                      ? `
                     <button class="reveal-btn" onclick="toggleReveal('${key}')">
                       ${manuallyUnmaskedKeys.has(key) ? EYE_OFF_ICON : EYE_ON_ICON}
                     </button>
-                  ` : ''}
+                  `
+                      : ''
+                  }
                   <button class="quick-copy" onclick="copyToClipboard('${escapeHtml(devVal)}', 'Dev value copied!')" title="Copy Dev Value">
                     ${COPY_ICON}
                   </button>
                 </div>
-              ` : `<span class="empty-val">-</span>`}
+              `
+                  : `<span class="empty-val">-</span>`
+              }
             </div>
             
             <div class="grid-cell">
-              ${hasProd ? `
+              ${
+                hasProd
+                  ? `
                 <div class="value-container" title="${escapeHtml(prodVal)}">
                   <span class="value-text">${escapeHtml(prodMasked) || '<span class="empty-val">empty</span>'}</span>
-                  ${showMasked && ["KEY", "PASS", "SECRET", "TOKEN", "AUTH", "DATABASE", "URL", "JWT", "SALT", "PWD"].some(w => key.includes(w)) ? `
+                  ${
+                    showMasked &&
+                    [
+                      'KEY',
+                      'PASS',
+                      'SECRET',
+                      'TOKEN',
+                      'AUTH',
+                      'DATABASE',
+                      'URL',
+                      'JWT',
+                      'SALT',
+                      'PWD',
+                    ].some(w => key.includes(w))
+                      ? `
                     <button class="reveal-btn" onclick="toggleReveal('${key}')">
                       ${manuallyUnmaskedKeys.has(key) ? EYE_OFF_ICON : EYE_ON_ICON}
                     </button>
-                  ` : ''}
+                  `
+                      : ''
+                  }
                   <button class="quick-copy" onclick="copyToClipboard('${escapeHtml(prodVal)}', 'Prod value copied!')" title="Copy Prod Value">
                     ${COPY_ICON}
                   </button>
                 </div>
-              ` : `<span class="empty-val">-</span>`}
+              `
+                  : `<span class="empty-val">-</span>`
+              }
             </div>
             
             <div class="grid-cell action-cell">
@@ -694,7 +787,8 @@ function renderUnifiedDiff(query, filterType) {
             </div>
           </div>
         `;
-      }).join('')}
+        })
+        .join('')}
     </div>
   `;
 }
@@ -713,7 +807,9 @@ function renderMissingList(keys, iconClass, emptyMessage, destinationEnv) {
 
   return `
     <div class="missing-list">
-      ${keys.map(key => `
+      ${keys
+        .map(
+          key => `
         <div class="missing-item ${iconClass}">
           <div class="item-left">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -732,7 +828,9 @@ function renderMissingList(keys, iconClass, emptyMessage, destinationEnv) {
             </button>
           </div>
         </div>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
   `;
 }
@@ -744,7 +842,7 @@ function renderValueMismatches(query) {
   const devMap = parsedDev.unique;
   const prodMap = parsedProd.unique;
   const mismatches = [];
-  
+
   devMap.forEach((devVal, key) => {
     if (prodMap.has(key)) {
       const prodVal = prodMap.get(key);
@@ -766,11 +864,12 @@ function renderValueMismatches(query) {
 
   return `
     <div class="diff-list">
-      ${mismatches.map(item => {
-        const devMasked = getMaskedString(item.key, item.devVal);
-        const prodMasked = getMaskedString(item.key, item.prodVal);
-        
-        return `
+      ${mismatches
+        .map(item => {
+          const devMasked = getMaskedString(item.key, item.devVal);
+          const prodMasked = getMaskedString(item.key, item.prodVal);
+
+          return `
           <div class="diff-item">
             <div class="diff-header">
               <div class="diff-header-left">
@@ -792,11 +891,27 @@ function renderValueMismatches(query) {
                 <div class="diff-val">
                   <span>${escapeHtml(devMasked) || '<span class="empty-val">empty</span>'}</span>
                   <div style="display:flex; gap:0.25rem;">
-                    ${showMasked && ["KEY", "PASS", "SECRET", "TOKEN", "AUTH", "DATABASE", "URL", "JWT", "SALT", "PWD"].some(w => item.key.includes(w)) ? `
+                    ${
+                      showMasked &&
+                      [
+                        'KEY',
+                        'PASS',
+                        'SECRET',
+                        'TOKEN',
+                        'AUTH',
+                        'DATABASE',
+                        'URL',
+                        'JWT',
+                        'SALT',
+                        'PWD',
+                      ].some(w => item.key.includes(w))
+                        ? `
                       <button class="reveal-btn" onclick="toggleReveal('${item.key}')">
                         ${manuallyUnmaskedKeys.has(item.key) ? EYE_OFF_ICON : EYE_ON_ICON}
                       </button>
-                    ` : ''}
+                    `
+                        : ''
+                    }
                     <button class="quick-copy" onclick="copyToClipboard('${escapeHtml(item.devVal)}', 'Dev value copied!')">
                       ${COPY_ICON}
                     </button>
@@ -809,11 +924,27 @@ function renderValueMismatches(query) {
                 <div class="diff-val">
                   <span>${escapeHtml(prodMasked) || '<span class="empty-val">empty</span>'}</span>
                   <div style="display:flex; gap:0.25rem;">
-                    ${showMasked && ["KEY", "PASS", "SECRET", "TOKEN", "AUTH", "DATABASE", "URL", "JWT", "SALT", "PWD"].some(w => item.key.includes(w)) ? `
+                    ${
+                      showMasked &&
+                      [
+                        'KEY',
+                        'PASS',
+                        'SECRET',
+                        'TOKEN',
+                        'AUTH',
+                        'DATABASE',
+                        'URL',
+                        'JWT',
+                        'SALT',
+                        'PWD',
+                      ].some(w => item.key.includes(w))
+                        ? `
                       <button class="reveal-btn" onclick="toggleReveal('${item.key}')">
                         ${manuallyUnmaskedKeys.has(item.key) ? EYE_OFF_ICON : EYE_ON_ICON}
                       </button>
-                    ` : ''}
+                    `
+                        : ''
+                    }
                     <button class="quick-copy" onclick="copyToClipboard('${escapeHtml(item.prodVal)}', 'Prod value copied!')">
                       ${COPY_ICON}
                     </button>
@@ -823,7 +954,8 @@ function renderValueMismatches(query) {
             </div>
           </div>
         `;
-      }).join('')}
+        })
+        .join('')}
     </div>
   `;
 }
@@ -912,9 +1044,24 @@ function renderLinterView() {
 
   // Segment flat issues list into structural categories
   const categories = {
-    exposedSecrets: { title: "Exposed Client-Side Secrets", issues: [], icon: ERROR_ICON, desc: "Critical vulnerabilities where credentials risk public exposure in javascript bundles." },
-    criticalErrors: { title: "Critical Credentials & Network Health", issues: [], icon: WARNING_ICON, desc: "Database values, unsecure networks, or production integrity warnings." },
-    codeQuality: { title: "Quality & Naming Standards", issues: [], icon: INFO_ICON, desc: "Upper casing syntax styles and duplication checks." }
+    exposedSecrets: {
+      title: 'Exposed Client-Side Secrets',
+      issues: [],
+      icon: ERROR_ICON,
+      desc: 'Critical vulnerabilities where credentials risk public exposure in javascript bundles.',
+    },
+    criticalErrors: {
+      title: 'Critical Credentials & Network Health',
+      issues: [],
+      icon: WARNING_ICON,
+      desc: 'Database values, unsecure networks, or production integrity warnings.',
+    },
+    codeQuality: {
+      title: 'Quality & Naming Standards',
+      issues: [],
+      icon: INFO_ICON,
+      desc: 'Upper casing syntax styles and duplication checks.',
+    },
   };
 
   linterIssues.forEach(issue => {
@@ -939,18 +1086,21 @@ function renderLinterView() {
       </div>
       
       <div class="linter-groups">
-        ${Object.keys(categories).map(catKey => {
-          const group = categories[catKey];
-          if (group.issues.length === 0) return '';
-          
-          return `
+        ${Object.keys(categories)
+          .map(catKey => {
+            const group = categories[catKey];
+            if (group.issues.length === 0) return '';
+
+            return `
             <div class="linter-card">
               <div class="linter-card-header">
                 ${group.icon}
                 <span>${group.title}</span>
               </div>
               <div style="padding: 0.25rem 0;">
-                ${group.issues.map(issue => `
+                ${group.issues
+                  .map(
+                    issue => `
                   <div class="linter-item-row">
                     <div class="linter-indicator text-${issue.severity}">
                       ${issue.severity === 'danger' ? ERROR_ICON : issue.severity === 'warning' ? WARNING_ICON : INFO_ICON}
@@ -960,11 +1110,14 @@ function renderLinterView() {
                       <div class="linter-item-desc">${issue.desc}</div>
                     </div>
                   </div>
-                `).join('')}
+                `
+                  )
+                  .join('')}
               </div>
             </div>
           `;
-        }).join('')}
+          })
+          .join('')}
       </div>
     </div>
   `;
@@ -973,15 +1126,18 @@ function renderLinterView() {
 /**
  * Interactions & Quick Buttons Logic
  */
-window.copyToClipboard = function(text, successMsg) {
-  navigator.clipboard.writeText(text).then(() => {
-    showToast(successMsg, 'success');
-  }).catch(() => {
-    showToast('Failed to copy to clipboard', 'danger');
-  });
+window.copyToClipboard = function (text, successMsg) {
+  navigator.clipboard
+    .writeText(text)
+    .then(() => {
+      showToast(successMsg, 'success');
+    })
+    .catch(() => {
+      showToast('Failed to copy to clipboard', 'danger');
+    });
 };
 
-window.toggleReveal = function(key) {
+window.toggleReveal = function (key) {
   if (manuallyUnmaskedKeys.has(key)) {
     manuallyUnmaskedKeys.delete(key);
   } else {
@@ -990,15 +1146,19 @@ window.toggleReveal = function(key) {
   renderTab();
 };
 
-window.copyMissingToOpposite = function(key, destination) {
+window.copyMissingToOpposite = function (key, destination) {
   if (destination === 'prod') {
     const val = parsedDev.unique.get(key) || '';
-    const cleanComment = parsedDev.comments.has(key) ? '\n' + parsedDev.comments.get(key).join('\n') : '';
+    const cleanComment = parsedDev.comments.has(key)
+      ? '\n' + parsedDev.comments.get(key).join('\n')
+      : '';
     prodInput.value = prodInput.value.trim() + `\n${cleanComment}\n${key}=${val}\n`;
     showToast(`Synced ${key} to Production!`, 'success');
   } else {
     const val = parsedProd.unique.get(key) || '';
-    const cleanComment = parsedProd.comments.has(key) ? '\n' + parsedProd.comments.get(key).join('\n') : '';
+    const cleanComment = parsedProd.comments.has(key)
+      ? '\n' + parsedProd.comments.get(key).join('\n')
+      : '';
     devInput.value = devInput.value.trim() + `\n${cleanComment}\n${key}=${val}\n`;
     showToast(`Synced ${key} to Development!`, 'success');
   }
@@ -1006,47 +1166,48 @@ window.copyMissingToOpposite = function(key, destination) {
 };
 
 // Global masking trigger
-maskSecretsToggle.addEventListener('change', (e) => {
+maskSecretsToggle.addEventListener('change', e => {
   showMasked = e.target.checked;
   manuallyUnmaskedKeys.clear();
   updateComparison();
-  showToast(showMasked ? "Screen share mode enabled (Secrets masked)" : "Secrets visible", 'info');
+  showToast(showMasked ? 'Screen share mode enabled (Secrets masked)' : 'Secrets visible', 'info');
 });
 
 // Clear all inputs
 actionClearAll.addEventListener('click', () => {
   if (devInput.value.trim() === '' && prodInput.value.trim() === '') {
-    showToast("Both inputs are already clear!", 'warning');
+    showToast('Both inputs are already clear!', 'warning');
     return;
   }
-  
+
   devInput.value = '';
   prodInput.value = '';
   devFileNameLabel.textContent = 'No file selected';
   prodFileNameLabel.textContent = 'No file selected';
   devFileInput.value = '';
   prodFileInput.value = '';
-  
+
   // Clear active presets
   presetBtns.forEach(btn => btn.classList.remove('active'));
-  
+
+  clearPaneSearches();
   updateComparison();
-  showToast("All environment variables cleared!", 'info');
+  showToast('All environment variables cleared!', 'info');
 });
 
 // Format and sort alphabetically
 actionCleanSort.addEventListener('click', () => {
   if (devInput.value.trim() === '' && prodInput.value.trim() === '') {
-    showToast("Nothing to format!", 'warning');
+    showToast('Nothing to format!', 'warning');
     return;
   }
-  
+
   const cleanAndSortInput = (textarea, parsed) => {
     if (!textarea.value.trim()) return;
-    
+
     const sortedKeys = Array.from(parsed.unique.keys()).sort();
     let result = '';
-    
+
     sortedKeys.forEach(key => {
       // Add comments if they exist
       if (parsed.comments.has(key)) {
@@ -1054,68 +1215,77 @@ actionCleanSort.addEventListener('click', () => {
       }
       result += `${key}=${parsed.unique.get(key)}\n\n`;
     });
-    
+
     textarea.value = result.trim() + '\n';
   };
-  
+
   cleanAndSortInput(devInput, parsedDev);
   cleanAndSortInput(prodInput, parsedProd);
-  
+
+  clearPaneSearches();
   updateComparison();
-  showToast("Alphabetized and cleaned duplicate variables!", 'success');
+  showToast('Alphabetized and cleaned duplicate variables!', 'success');
 });
 
 // Sync all missing keys mutually
 actionSyncMissing.addEventListener('click', () => {
   const devMap = parsedDev.unique;
   const prodMap = parsedProd.unique;
-  
+
   let syncDevCount = 0;
   let syncProdCount = 0;
-  
+
   // Dev keys missing in Prod
   devMap.forEach((val, key) => {
     if (!prodMap.has(key)) {
-      const comment = parsedDev.comments.has(key) ? '\n' + parsedDev.comments.get(key).join('\n') : '';
+      const comment = parsedDev.comments.has(key)
+        ? '\n' + parsedDev.comments.get(key).join('\n')
+        : '';
       prodInput.value = prodInput.value.trim() + `\n${comment}\n${key}=\n`;
       syncProdCount++;
     }
   });
-  
+
   // Prod keys missing in Dev
   prodMap.forEach((val, key) => {
     if (!devMap.has(key)) {
-      const comment = parsedProd.comments.has(key) ? '\n' + parsedProd.comments.get(key).join('\n') : '';
+      const comment = parsedProd.comments.has(key)
+        ? '\n' + parsedProd.comments.get(key).join('\n')
+        : '';
       devInput.value = devInput.value.trim() + `\n${comment}\n${key}=\n`;
       syncDevCount++;
     }
   });
-  
+
   if (syncDevCount === 0 && syncProdCount === 0) {
-    showToast("Environments are already in sync!", 'info');
+    showToast('Environments are already in sync!', 'info');
     return;
   }
-  
+
+  clearPaneSearches();
   updateComparison();
-  showToast(`Synced! Added ${syncProdCount} keys to Prod and ${syncDevCount} keys to Dev.`, 'success');
+  showToast(
+    `Synced! Added ${syncProdCount} keys to Prod and ${syncDevCount} keys to Dev.`,
+    'success'
+  );
 });
 
 // Download Merged file
 actionDownloadMerged.addEventListener('click', () => {
   if (devInput.value.trim() === '' && prodInput.value.trim() === '') {
-    showToast("Nothing to download!", 'warning');
+    showToast('Nothing to download!', 'warning');
     return;
   }
-  
+
   const devMap = parsedDev.unique;
   const prodMap = parsedProd.unique;
-  
+
   // Combine all keys
   const allKeys = Array.from(new Set([...devMap.keys(), ...prodMap.keys()])).sort();
-  
+
   let mergedText = `# Unified Environment Configuration Template\n`;
   mergedText += `# Generated via EnvCompare on ${new Date().toLocaleDateString()}\n\n`;
-  
+
   allKeys.forEach(key => {
     // Add comments from either dev or prod
     if (parsedDev.comments.has(key)) {
@@ -1123,12 +1293,12 @@ actionDownloadMerged.addEventListener('click', () => {
     } else if (parsedProd.comments.has(key)) {
       mergedText += parsedProd.comments.get(key).join('\n') + '\n';
     }
-    
+
     // Prefer Dev values as base template values
     const value = devMap.has(key) ? devMap.get(key) : prodMap.get(key);
     mergedText += `${key}=${value}\n\n`;
   });
-  
+
   // Create download trigger
   const blob = new Blob([mergedText], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
@@ -1139,8 +1309,8 @@ actionDownloadMerged.addEventListener('click', () => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  
-  showToast("Merged .env template download triggered!", 'success');
+
+  showToast('Merged .env template download triggered!', 'success');
 });
 
 /**
@@ -1154,7 +1324,7 @@ function handleFileSelect(e, type) {
 
 function readFileContent(file, type) {
   const reader = new FileReader();
-  reader.onload = (event) => {
+  reader.onload = event => {
     const text = event.target.result;
     if (type === 'dev') {
       devInput.value = text;
@@ -1163,6 +1333,7 @@ function readFileContent(file, type) {
       prodInput.value = text;
       prodFileNameLabel.textContent = file.name;
     }
+    clearPaneSearches();
     updateComparison();
     showToast(`Loaded ${file.name} successfully!`, 'success');
   };
@@ -1174,30 +1345,32 @@ devClearBtn.addEventListener('click', () => {
   devInput.value = '';
   devFileNameLabel.textContent = 'No file selected';
   devFileInput.value = ''; // reset file element
+  clearPaneSearches();
   updateComparison();
-  showToast("Development inputs cleared.", 'info');
+  showToast('Development inputs cleared.', 'info');
 });
 
 prodClearBtn.addEventListener('click', () => {
   prodInput.value = '';
   prodFileNameLabel.textContent = 'No file selected';
   prodFileInput.value = ''; // reset file element
+  clearPaneSearches();
   updateComparison();
-  showToast("Production inputs cleared.", 'info');
+  showToast('Production inputs cleared.', 'info');
 });
 
 // Drag & Drop event bindings
 function setupDragDrop(zone, input, type, label) {
-  zone.addEventListener('dragover', (e) => {
+  zone.addEventListener('dragover', e => {
     e.preventDefault();
     zone.classList.add('drag-over');
   });
-  
+
   zone.addEventListener('dragleave', () => {
     zone.classList.remove('drag-over');
   });
-  
-  zone.addEventListener('drop', (e) => {
+
+  zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
@@ -1210,8 +1383,8 @@ function setupDragDrop(zone, input, type, label) {
 setupDragDrop(devDropZone, devInput, 'dev', devFileNameLabel);
 setupDragDrop(prodDropZone, prodInput, 'prod', prodFileNameLabel);
 
-devFileInput.addEventListener('change', (e) => handleFileSelect(e, 'dev'));
-prodFileInput.addEventListener('change', (e) => handleFileSelect(e, 'prod'));
+devFileInput.addEventListener('change', e => handleFileSelect(e, 'dev'));
+prodFileInput.addEventListener('change', e => handleFileSelect(e, 'prod'));
 
 /**
  * Preset loader integrations
@@ -1220,16 +1393,17 @@ presetBtns.forEach(btn => {
   btn.addEventListener('click', () => {
     presetBtns.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    
+
     const name = btn.getAttribute('data-preset');
     if (DEMO_PRESETS[name]) {
       devInput.value = DEMO_PRESETS[name].dev;
       prodInput.value = DEMO_PRESETS[name].prod;
-      
+
       // Update label displays
       devFileNameLabel.textContent = `${name}.dev.env`;
       prodFileNameLabel.textContent = `${name}.prod.env`;
-      
+
+      clearPaneSearches();
       updateComparison();
       showToast(`Loaded ${btn.textContent} Demo Dataset!`, 'info');
     }
@@ -1244,11 +1418,11 @@ navButtons.forEach(btn => {
     navButtons.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentTab = btn.getAttribute('data-tab');
-    
+
     // Clear search bar on switch
     resultsSearch.value = '';
     diffFilter.value = 'all';
-    
+
     renderTab();
   });
 });
@@ -1269,6 +1443,92 @@ prodInput.addEventListener('input', () => {
   presetBtns.forEach(b => b.classList.remove('active'));
   prodFileNameLabel.textContent = 'Manual Input';
   updateComparison();
+});
+
+function executeTextareaSearch(textarea, searchInput, countElement, stateObj, isCycle = false) {
+  const query = searchInput.value.toLowerCase().trim();
+  const text = textarea.value.toLowerCase();
+
+  if (!query) {
+    countElement.textContent = '';
+    stateObj.matches = [];
+    stateObj.currentIndex = -1;
+    stateObj.query = '';
+    return;
+  }
+
+  // Re-build match positions if query has changed
+  if (stateObj.query !== query) {
+    const matches = [];
+    let index = text.indexOf(query);
+    while (index !== -1) {
+      matches.push(index);
+      index = text.indexOf(query, index + query.length);
+    }
+    stateObj.matches = matches;
+    stateObj.query = query;
+    stateObj.currentIndex = matches.length > 0 ? 0 : -1;
+  } else if (isCycle && stateObj.matches.length > 0) {
+    // Cycle to next
+    stateObj.currentIndex = (stateObj.currentIndex + 1) % stateObj.matches.length;
+  }
+
+  const matches = stateObj.matches;
+
+  if (matches.length === 0) {
+    countElement.textContent = '0 matches';
+    stateObj.currentIndex = -1;
+    return;
+  }
+
+  const start = matches[stateObj.currentIndex];
+  const end = start + query.length;
+
+  // Highlight text selection
+  textarea.focus();
+  textarea.setSelectionRange(start, end);
+
+  // Scroll selection into view
+  const linesBefore = textarea.value.substring(0, start).split('\n').length;
+  const totalLines = textarea.value.split('\n').length;
+  const scrollHeight = textarea.scrollHeight;
+  const estimatedLineHeight = scrollHeight / totalLines;
+
+  textarea.scrollTop = Math.max(0, (linesBefore - 4) * estimatedLineHeight);
+
+  countElement.textContent = `${stateObj.currentIndex + 1}/${matches.length}`;
+}
+
+function clearPaneSearches() {
+  devPaneSearch.value = '';
+  prodPaneSearch.value = '';
+  devSearchCount.textContent = '';
+  prodSearchCount.textContent = '';
+  devSearchState = { query: '', matches: [], currentIndex: -1 };
+  prodSearchState = { query: '', matches: [], currentIndex: -1 };
+}
+
+// Bind search listeners
+devPaneSearch.addEventListener('input', () => {
+  executeTextareaSearch(devInput, devPaneSearch, devSearchCount, devSearchState, false);
+});
+
+devPaneSearch.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    executeTextareaSearch(devInput, devPaneSearch, devSearchCount, devSearchState, true);
+  }
+});
+
+prodPaneSearch.addEventListener('input', () => {
+  executeTextareaSearch(prodInput, prodPaneSearch, prodSearchCount, prodSearchState, false);
+});
+
+prodPaneSearch.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    executeTextareaSearch(prodInput, prodPaneSearch, prodSearchCount, prodSearchState, true);
+  }
 });
 
 // Initialize

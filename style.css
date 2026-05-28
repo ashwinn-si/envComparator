@@ -1333,8 +1333,67 @@ input:checked + .slider:before {
   border-radius: 10px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-color);
+/* Textarea Pane search box styles */
+.pane-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  margin-right: 1rem;
+  background: var(--input-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.5rem 0.2rem 1.6rem;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.pane-search-container:focus-within {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 10px -2px var(--accent-glow);
+}
+
+.pane-search-icon {
+  position: absolute;
+  left: 0.5rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.pane-search-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.725rem;
+  font-weight: 500;
+  outline: none;
+  width: 75px;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pane-search-input:focus {
+  width: 120px;
+}
+
+.search-match-count {
+  font-size: 0.65rem;
+  color: var(--accent-color);
+  font-weight: 800;
+  margin-left: 0.25rem;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+}
+
+textarea::selection {
+  background: rgba(139, 92, 246, 0.35);
+  color: inherit;
+}
+
+[data-theme="light"] textarea::selection {
+  background: rgba(99, 102, 241, 0.25);
 }
 
 /* Responsive Queries */
