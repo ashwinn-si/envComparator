@@ -1,67 +1,427 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EnvCompare | Premium Env Diff Tool</title>
-    <meta name="description" content="A beautiful and simple environment variable comparison tool. Compare development and production .env files instantly.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <header>
-        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme">
-            <svg id="theme-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <!-- Icon will be injected by JS -->
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EnvCompare | Premium Environment Variable Dashboard & Sync Tool</title>
+    <meta
+      name="description"
+      content="EnvCompare is a secure, premium, and feature-rich environment variable (.env) comparison dashboard. Compare, synchronize, format, and audit security credentials with ease."
+    />
+    <meta
+      name="keywords"
+      content="env compare, environment variables diff, .env comparison tool, secure dot env comparator, developer dashboard, configuration auditing, credentials linter"
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://env.ashwinsi.in" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://env.ashwinsi.in" />
+    <meta
+      property="og:title"
+      content="EnvCompare | Premium Environment Variable Dashboard & Sync Tool"
+    />
+    <meta
+      property="og:description"
+      content="Instantly analyze, sync, sort, and lint your environment variables securely in your browser. Complete visual comparison with screen-share security mode."
+    />
+    <meta property="og:image" content="https://env.ashwinsi.in/assets/logo.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://env.ashwinsi.in" />
+    <meta
+      property="twitter:title"
+      content="EnvCompare | Premium Environment Variable Dashboard & Sync Tool"
+    />
+    <meta
+      property="twitter:description"
+      content="Instantly analyze, sync, sort, and lint your environment variables securely in your browser. Complete visual comparison with screen-share security mode."
+    />
+    <meta property="twitter:image" content="https://env.ashwinsi.in/assets/logo.png" />
+
+    <!-- Schema.org JSON-LD Structured Data for Search Engine Algorithms -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "EnvCompare",
+        "url": "https://env.ashwinsi.in",
+        "description": "Secure browser-based environment variable comparison, formatting, and auditing dashboard for developers.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "All",
+        "browserRequirements": "Requires HTML5, CSS3, and JavaScript support.",
+        "logo": "https://env.ashwinsi.in/assets/logo.png",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-main">
+        <div class="logo-area">
+          <div class="logo-icon" id="logo-icon-container">
+            <img
+              src="assets/logo.png"
+              alt="EnvCompare Logo - Secure Environment Variable Diff Tool"
+              class="logo-img"
+              id="app-logo-img"
+            />
+          </div>
+          <div>
+            <h1>EnvCompare</h1>
+            <p class="subtitle">Secure, professional environment variable management & syncing</p>
+          </div>
+        </div>
+
+        <div class="header-controls">
+          <div class="preset-loader">
+            <span class="preset-label">Load Demo:</span>
+            <button class="preset-btn" data-preset="nextjs">Next.js</button>
+            <button class="preset-btn" data-preset="laravel">Laravel</button>
+            <button class="preset-btn" data-preset="django">Django</button>
+          </div>
+
+          <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme">
+            <svg
+              id="theme-icon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <!-- Icon will be injected by JS -->
             </svg>
-        </button>
-        <h1>EnvCompare</h1>
-        <p class="subtitle">Instantly identify missing environment variables in production.</p>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Statistics Ribbon -->
+      <div class="stats-ribbon">
+        <div class="stat-card">
+          <span class="stat-label">Development Keys</span>
+          <span class="stat-value" id="stat-dev-count">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Production Keys</span>
+          <span class="stat-value" id="stat-prod-count">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Sync Health</span>
+          <div class="stat-progress-container">
+            <span class="stat-value" id="stat-sync-percent">0%</span>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="stat-sync-bar" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="stat-card" id="stat-security-card">
+          <span class="stat-label">Security & Integrity</span>
+          <span class="stat-value text-success" id="stat-security-score">100/100</span>
+        </div>
+      </div>
     </header>
 
-    <main>
-        <section class="comparison-grid">
-            <div class="pane">
-                <div class="pane-header">
-                    <span class="label">Development (.env)</span>
-                </div>
-                <textarea id="dev-env" placeholder="Paste your development .env content here..."></textarea>
+    <main class="app-body">
+      <!-- Input Grid -->
+      <section class="comparison-grid">
+        <!-- Development Pane -->
+        <div class="pane" id="dev-pane">
+          <div class="pane-header">
+            <div class="pane-title">
+              <span class="indicator dev-indicator"></span>
+              <span class="label">Development (.env)</span>
             </div>
-
-            <div class="pane">
-                <div class="pane-header">
-                    <span class="label">Production (.env)</span>
-                </div>
-                <textarea id="prod-env" placeholder="Paste your production .env content here..."></textarea>
+            <div class="file-actions">
+              <span class="file-name-label" id="dev-file-name">No file selected</span>
+              <label for="dev-file-input" class="file-btn">
+                Browse
+                <input
+                  type="file"
+                  id="dev-file-input"
+                  accept=".env,text/plain"
+                  style="display: none"
+                />
+              </label>
+              <button
+                class="clear-btn"
+                id="dev-clear"
+                title="Clear Dev Content"
+                aria-label="Clear content"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path
+                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                  ></path>
+                </svg>
+              </button>
             </div>
-        </section>
+          </div>
+          <div class="drop-zone" id="dev-drop-zone">
+            <textarea
+              id="dev-env"
+              placeholder="Paste your development .env content here, or drag and drop your file..."
+            ></textarea>
+            <div class="drop-overlay">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span>Drop Development .env file</span>
+            </div>
+          </div>
+        </div>
 
-        <section class="results-section" id="results">
+        <!-- Production Pane -->
+        <div class="pane" id="prod-pane">
+          <div class="pane-header">
+            <div class="pane-title">
+              <span class="indicator prod-indicator"></span>
+              <span class="label">Production (.env)</span>
+            </div>
+            <div class="file-actions">
+              <span class="file-name-label" id="prod-file-name">No file selected</span>
+              <label for="prod-file-input" class="file-btn">
+                Browse
+                <input
+                  type="file"
+                  id="prod-file-input"
+                  accept=".env,text/plain"
+                  style="display: none"
+                />
+              </label>
+              <button
+                class="clear-btn"
+                id="prod-clear"
+                title="Clear Prod Content"
+                aria-label="Clear content"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path
+                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="drop-zone" id="prod-drop-zone">
+            <textarea
+              id="prod-env"
+              placeholder="Paste your production .env content here, or drag and drop your file..."
+            ></textarea>
+            <div class="drop-overlay">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span>Drop Production .env file</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Actions Panel -->
+      <section class="actions-panel">
+        <div class="panel-left">
+          <div class="mask-switch-container">
+            <span class="toggle-description">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              Screen Share Mode (Mask Secrets)
+            </span>
+            <label class="switch">
+              <input type="checkbox" id="mask-secrets-toggle" />
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-right">
+          <button
+            class="action-btn secondary-action danger-hover-action"
+            id="action-clear-all"
+            title="Clear both Development and Production contents"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path
+                d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+              ></path>
+            </svg>
+            Clear All
+          </button>
+          <button class="action-btn secondary-action" id="action-clean-sort">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="4" y1="6" x2="20" y2="6"></line>
+              <line x1="4" y1="12" x2="14" y2="12"></line>
+              <line x1="4" y1="18" x2="18" y2="18"></line>
+            </svg>
+            Format & Sort
+          </button>
+          <button class="action-btn secondary-action" id="action-sync-missing">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            Sync Missing Keys
+          </button>
+          <button class="action-btn primary-action" id="action-download-merged">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export Merged .env
+          </button>
+        </div>
+      </section>
+
+      <!-- Results & Analysis -->
+      <section class="results-section" id="results">
+        <div class="results-header-container">
+          <div class="results-nav-wrapper">
             <div class="results-nav">
-                <button class="nav-btn active" data-tab="missing-prod">
-                    Missing in Prod <span class="badge" id="badge-missing-prod">0</span>
-                </button>
-                <button class="nav-btn" data-tab="missing-dev">
-                    Missing in Dev <span class="badge" id="badge-missing-dev">0</span>
-                </button>
-                <button class="nav-btn" data-tab="diff-values">
-                    Different Values <span class="badge" id="badge-diff-values">0</span>
-                </button>
-                <button class="nav-btn" data-tab="dupes">
-                    Duplicates <span class="badge" id="badge-dupes">0</span>
-                </button>
+              <button class="nav-btn active" data-tab="unified-diff">Unified Diff</button>
+              <button class="nav-btn" data-tab="missing-prod">
+                Missing in Prod <span class="badge" id="badge-missing-prod">0</span>
+              </button>
+              <button class="nav-btn" data-tab="missing-dev">
+                Missing in Dev <span class="badge" id="badge-missing-dev">0</span>
+              </button>
+              <button class="nav-btn" data-tab="diff-values">
+                Different Values <span class="badge" id="badge-diff-values">0</span>
+              </button>
+              <button class="nav-btn" data-tab="dupes">
+                Duplicates <span class="badge" id="badge-dupes">0</span>
+              </button>
+              <button class="nav-btn" data-tab="linter">
+                Security & Health <span class="badge badge-warning" id="badge-linter">0</span>
+              </button>
             </div>
-            
-            <div id="detail-content" class="detail-content">
-                <div class="empty-state">
-                    Enter variables to start comparing.
-                </div>
+          </div>
+
+          <!-- Live Search Bar inside Results Header -->
+          <div class="search-bar-container" id="search-container">
+            <div class="search-input-wrapper">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                class="search-icon"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="results-search" placeholder="Search variables..." />
             </div>
-        </section>
+            <select id="diff-filter" class="filter-select">
+              <option value="all">All Keys</option>
+              <option value="mismatch">Mismatched Only</option>
+              <option value="missing">Missing Only</option>
+              <option value="identical">Identical Only</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="detail-content" class="detail-content">
+          <div class="empty-state">Paste variables above or load a demo to explore results.</div>
+        </div>
+      </section>
     </main>
 
+    <!-- Dynamic Alert Toasts -->
+    <div id="toast-container" class="toast-container"></div>
+
     <script src="script.js"></script>
-</body>
+  </body>
 </html>
